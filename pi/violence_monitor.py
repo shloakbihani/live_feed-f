@@ -36,6 +36,7 @@ from config import (
     CAMERA_IP,
     CAMERA_SUBTYPE,
     CONFIRM_HITS,
+    CONFIRM_WINDOW,
     DAYCARE_NAME,
     DECODE_FPS,
     DECODE_WIDTH,
@@ -242,6 +243,7 @@ def run_monitor(
     decode_width: int = DECODE_WIDTH,
     decode_fps: float = DECODE_FPS,
     confirm_hits: int = CONFIRM_HITS,
+    confirm_window: int = CONFIRM_WINDOW,
 ):
     src_w, src_h = info["width"], info["height"]
     if src_w == 0 or src_h == 0:
@@ -265,21 +267,23 @@ def run_monitor(
     infer_count = 0
     skipped_infer = 0
     start = time.time()
-    consecutive_hits = 0
+    confirm_hits = max(1, confirm_hits)
+    confirm_window = max(confirm_hits, confirm_window)
+    # (is_violence, result, frame) for the last N inferences
+    hit_window: collections.deque = collections.deque(maxlen=confirm_window)
     alert_active = False
     pause_until = 0.0
     last_pause_log = 0.0
-    best_hit_frame: np.ndarray | None = None
-    best_hit_result: ViolenceResult | None = None
 
     print(f"\nSource: {src_w}x{src_h} {info['codec'].upper()} @ {info['fps_str']}")
     print(
         f"Decode ≤{decode_width}px @ {decode_fps:.0f} fps  |  "
         f"infer every {every_n} frame(s)  |  threshold={detector.conf_threshold:.0%}"
     )
+    window_sec = confirm_window * every_n / decode_fps if decode_fps else 0
     print(
-        f"Confirm after {confirm_hits} consecutive violence inferences "
-        f"(~{confirm_hits * every_n / decode_fps:.1f}s)"
+        f"Confirm {confirm_hits} of last {confirm_window} inferences "
+        f"(~{window_sec:.1f}s window)"
     )
     print(f"ML pause after alert: {pause_after_alert_sec:.0f}s (Pi cooldown)")
     print("Press 'q' to quit, 's' for snapshot\n")
@@ -319,40 +323,36 @@ def run_monitor(
                         print(f"  ML paused after alert — resume in {remaining}s")
                         last_pause_log = now
                     alert_active = False
-                    consecutive_hits = 0
-                    best_hit_frame = None
-                    best_hit_result = None
+                    hit_window.clear()
                 elif frame_count % every_n == 0:
                     latest = detector.predict(frame)
                     infer_count += 1
 
-                    if latest.is_violence:
-                        consecutive_hits += 1
-                        if (
-                            best_hit_result is None
-                            or latest.confidence > best_hit_result.confidence
-                        ):
-                            best_hit_frame = frame.copy()
-                            best_hit_result = latest
-                    else:
-                        consecutive_hits = max(0, consecutive_hits - 1)
-                        if consecutive_hits == 0:
-                            best_hit_frame = None
-                            best_hit_result = None
+                    snap = frame.copy() if latest.is_violence else None
+                    hit_window.append((latest.is_violence, latest, snap))
+                    hits = sum(1 for is_v, _, _ in hit_window if is_v)
+                    alert_active = hits >= confirm_hits
 
-                    alert_active = consecutive_hits >= confirm_hits
                     if alert_active and alert_mgr:
-                        upload_result = best_hit_result or latest
+                        best_hit_result = None
+                        best_hit_frame = None
+                        for is_v, res, frm in hit_window:
+                            if not is_v or res is None:
+                                continue
+                            if (
+                                best_hit_result is None
+                                or res.confidence > best_hit_result.confidence
+                            ):
+                                best_hit_result = res
+                                best_hit_frame = frm
                         fired = alert_mgr.maybe_alert(
-                            upload_result,
+                            best_hit_result or latest,
                             snapshot=best_hit_frame,
                         )
                         if fired is not None and pause_after_alert_sec > 0:
                             pause_until = time.time() + pause_after_alert_sec
                             last_pause_log = time.time()
-                            consecutive_hits = 0
-                            best_hit_frame = None
-                            best_hit_result = None
+                            hit_window.clear()
                             print(
                                 f"  ML paused for {pause_after_alert_sec:.0f}s "
                                 "to keep the device cool"
@@ -417,7 +417,9 @@ def main():
     parser.add_argument("--every", type=int, default=VIOLENCE_EVERY_N,
                         help="Run inference every N frames")
     parser.add_argument("--confirm", type=int, default=CONFIRM_HITS,
-                        help="Consecutive violence inferences before an alert (default 4)")
+                        help="Violence inferences required in the confirm window (default 8)")
+    parser.add_argument("--confirm-window", type=int, default=CONFIRM_WINDOW,
+                        help="Recent inferences to count (default 10; 8 of 10)")
     parser.add_argument("--cooldown", type=float, default=ALERT_COOLDOWN_SEC,
                         help="Seconds between SMS/portal alerts (default 300)")
     parser.add_argument("--pause", type=float, default=INFER_PAUSE_AFTER_ALERT_SEC,
@@ -497,7 +499,7 @@ def main():
     )
     print(f"  Classes: {detector.names}")
     print(f"  Threshold: {detector.conf_threshold:.0%}")
-    print(f"  Confirm hits: {max(1, args.confirm)}")
+    print(f"  Confirm: {max(1, args.confirm)} of last {max(1, args.confirm_window)}")
     print(f"  Daycare: {DAYCARE_NAME or CAMERA_IP}")
     if storage_configured():
         print("  Snapshots: Supabase Storage")
@@ -555,6 +557,7 @@ def main():
         decode_width=args.decode_width,
         decode_fps=args.decode_fps,
         confirm_hits=max(1, args.confirm),
+        confirm_window=max(1, args.confirm_window),
     )
 
 
