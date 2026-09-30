@@ -49,7 +49,7 @@ HTTP_STREAM = f"http://{CAMERA_IP}/cgi-bin/mjpg/video.cgi?channel=1&subtype=1"
 # Violence model
 VIOLENCE_WEIGHTS = os.getenv(
     "VIOLENCE_WEIGHTS",
-    "violence_yolov8n_cls-4/weights/best.pt",
+    str(Path(__file__).parent / "violence_yolov8n_cls-4" / "weights" / "best.pt"),
 )
 VIOLENCE_CONF = float(os.getenv("VIOLENCE_CONF", "0.60"))
 VIOLENCE_EVERY_N = int(os.getenv("VIOLENCE_EVERY_N", "4"))

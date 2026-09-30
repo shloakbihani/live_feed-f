@@ -1,7 +1,7 @@
 """
 YOLOv8 violence classifier wrapper.
 
-Model: violence_yolov8n_cls-4/weights/best.pt
+Model: pi/violence_yolov8n_cls-4/weights/best.pt
 Classes: 0 = non_violence, 1 = violence
 Input size: 224x224
 """
@@ -14,16 +14,13 @@ from pathlib import Path
 
 _HERE = Path(__file__).parent
 _REPO = _HERE.parent
+_WEIGHTS_CANDIDATES = (
+    _HERE / "violence_yolov8n_cls-4" / "weights" / "best.pt",
+    _REPO / "violence_yolov8n_cls-4" / "weights" / "best.pt",  # old repo-root layout
+)
 DEFAULT_WEIGHTS = next(
-    (
-        p
-        for p in (
-            _HERE / "violence_yolov8n_cls-4" / "weights" / "best.pt",
-            _REPO / "violence_yolov8n_cls-4" / "weights" / "best.pt",
-        )
-        if p.exists()
-    ),
-    _REPO / "violence_yolov8n_cls-4" / "weights" / "best.pt",
+    (p for p in _WEIGHTS_CANDIDATES if p.exists()),
+    _WEIGHTS_CANDIDATES[0],
 )
 
 import cv2

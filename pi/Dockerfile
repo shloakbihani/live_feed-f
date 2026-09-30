@@ -17,7 +17,6 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir opencv-python-headless
 
 COPY pi/ /app/
-COPY violence_yolov8n_cls-4 /app/violence_yolov8n_cls-4
 
 ENV DEPLOY_HEADLESS=true
 ENV PYTHONUNBUFFERED=1

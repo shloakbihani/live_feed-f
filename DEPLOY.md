@@ -47,7 +47,7 @@ docker compose logs -f
 
 No live feed — worker runs ML + SMS only. See **[RENDER.md](RENDER.md)**.
 
-1. Push repo to GitHub (include `violence_yolov8n_cls-4/weights/best.pt`)
+1. Push repo to GitHub (include `pi/violence_yolov8n_cls-4/weights/best.pt`)
 2. Render → New → Blueprint (or Background Worker + Docker)
 3. Set `CAMERA_*`, `SMS_TO`, `TWILIO_*` in Environment
 4. Region: **Singapore**, Plan: **Starter**
