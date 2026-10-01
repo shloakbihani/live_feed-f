@@ -53,6 +53,10 @@ VIOLENCE_WEIGHTS = os.getenv(
 )
 VIOLENCE_CONF = float(os.getenv("VIOLENCE_CONF", "0.60"))
 VIOLENCE_EVERY_N = int(os.getenv("VIOLENCE_EVERY_N", "4"))
+# Violence classification and alerts run only when at least this many people
+# are in the frame. 2 means "more than one person".
+MIN_PEOPLE = int(os.getenv("MIN_PEOPLE", "2"))
+PERSON_CONF = float(os.getenv("PERSON_CONF", "0.40"))
 # Alert when CONFIRM_HITS of the last CONFIRM_WINDOW inferences are violence
 # (8 of 10 ≈ 8s at 5 fps / every 4). Window == hits is consecutive-only.
 CONFIRM_HITS = int(os.getenv("CONFIRM_HITS", "8"))

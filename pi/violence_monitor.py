@@ -42,6 +42,8 @@ from config import (
     DECODE_WIDTH,
     DEPLOY_HEADLESS,
     INFER_PAUSE_AFTER_ALERT_SEC,
+    MIN_PEOPLE,
+    PERSON_CONF,
     PORTAL_URL,
     SAVE_CLIPS,
     VIOLENCE_CONF,
@@ -56,7 +58,7 @@ from stream_utils import (
     open_ffmpeg_pipe,
     probe_stream,
 )
-from violence_detector import DEFAULT_WEIGHTS, ViolenceDetector, ViolenceResult
+from violence_detector import DEFAULT_WEIGHTS, PersonCounter, ViolenceDetector, ViolenceResult
 
 
 def draw_overlay(
@@ -64,12 +66,17 @@ def draw_overlay(
     result: ViolenceResult | None,
     fps: float,
     alert_active: bool,
+    people: int | None = None,
+    min_people: int = 2,
 ) -> np.ndarray:
     disp = frame.copy()
     h, w = disp.shape[:2]
 
     # Status bar
-    if result is None:
+    if people is not None and people < min_people:
+        color = (180, 180, 180)
+        text = f"SKIP  {people} person(s) in frame"
+    elif result is None:
         color = (180, 180, 180)
         text = "Warming up..."
     elif result.is_violence:
@@ -232,6 +239,8 @@ def run_monitor(
     url: str,
     info: dict,
     detector: ViolenceDetector,
+    person_counter: PersonCounter | None = None,
+    min_people: int = MIN_PEOPLE,
     every_n: int = 4,
     save_alerts: bool = True,
     headless: bool = False,
@@ -266,6 +275,9 @@ def run_monitor(
     frame_count = 0
     infer_count = 0
     skipped_infer = 0
+    skipped_people = 0
+    latest_people: int | None = None
+    min_people = max(1, min_people)
     start = time.time()
     confirm_hits = max(1, confirm_hits)
     confirm_window = max(confirm_hits, confirm_window)
@@ -286,6 +298,11 @@ def run_monitor(
         f"(~{window_sec:.1f}s window)"
     )
     print(f"ML pause after alert: {pause_after_alert_sec:.0f}s (Pi cooldown)")
+    if person_counter is not None:
+        print(
+            f"People gate: violence runs only when {min_people} or more "
+            "people are in the frame"
+        )
     print("Press 'q' to quit, 's' for snapshot\n")
 
     reconnects = 0
@@ -325,44 +342,54 @@ def run_monitor(
                     alert_active = False
                     hit_window.clear()
                 elif frame_count % every_n == 0:
-                    latest = detector.predict(frame)
-                    infer_count += 1
+                    people = person_counter.count(frame) if person_counter else min_people
+                    latest_people = people
+                    if person_counter is not None and people < min_people:
+                        skipped_people += 1
+                        latest = None
+                        alert_active = False
+                        hit_window.clear()
+                    else:
+                        latest = detector.predict(frame)
+                        infer_count += 1
+                        snap = frame.copy() if latest.is_violence else None
+                        hit_window.append((latest.is_violence, latest, snap))
+                        hits = sum(1 for is_v, _, _ in hit_window if is_v)
+                        alert_active = hits >= confirm_hits
 
-                    snap = frame.copy() if latest.is_violence else None
-                    hit_window.append((latest.is_violence, latest, snap))
-                    hits = sum(1 for is_v, _, _ in hit_window if is_v)
-                    alert_active = hits >= confirm_hits
-
-                    if alert_active and alert_mgr:
-                        best_hit_result = None
-                        best_hit_frame = None
-                        for is_v, res, frm in hit_window:
-                            if not is_v or res is None:
-                                continue
-                            if (
-                                best_hit_result is None
-                                or res.confidence > best_hit_result.confidence
-                            ):
-                                best_hit_result = res
-                                best_hit_frame = frm
-                        fired = alert_mgr.maybe_alert(
-                            best_hit_result or latest,
-                            snapshot=best_hit_frame,
-                        )
-                        if fired is not None and pause_after_alert_sec > 0:
-                            pause_until = time.time() + pause_after_alert_sec
-                            last_pause_log = time.time()
-                            hit_window.clear()
-                            print(
-                                f"  ML paused for {pause_after_alert_sec:.0f}s "
-                                "to keep the device cool"
+                        if alert_active and alert_mgr:
+                            best_hit_result = None
+                            best_hit_frame = None
+                            for is_v, res, frm in hit_window:
+                                if not is_v or res is None:
+                                    continue
+                                if (
+                                    best_hit_result is None
+                                    or res.confidence > best_hit_result.confidence
+                                ):
+                                    best_hit_result = res
+                                    best_hit_frame = frm
+                            fired = alert_mgr.maybe_alert(
+                                best_hit_result or latest,
+                                snapshot=best_hit_frame,
                             )
+                            if fired is not None and pause_after_alert_sec > 0:
+                                pause_until = time.time() + pause_after_alert_sec
+                                last_pause_log = time.time()
+                                hit_window.clear()
+                                print(
+                                    f"  ML paused for {pause_after_alert_sec:.0f}s "
+                                    "to keep the device cool"
+                                )
 
                 elapsed = now - start
                 fps = frame_count / elapsed if elapsed > 0 else 0
 
                 if not headless:
-                    disp = draw_overlay(frame, latest, fps, alert_active)
+                    disp = draw_overlay(
+                        frame, latest, fps, alert_active,
+                        people=latest_people, min_people=min_people,
+                    )
                     if paused:
                         cv2.putText(
                             disp, "ML PAUSED (cooldown)",
@@ -383,10 +410,15 @@ def run_monitor(
                         cv2.imwrite(fn, frame)
                         print(f"Snapshot: {fn}")
                 elif frame_count % 25 == 0 and not paused:
-                    status = latest or "warming up"
+                    if latest_people is not None and latest_people < min_people:
+                        status = f"people={latest_people}  violence skipped"
+                    else:
+                        people_txt = f"people={latest_people}  " if latest_people is not None else ""
+                        status = f"{people_txt}{latest or 'warming up'}"
                     print(
                         f"  frames={frame_count}  infer={infer_count}  "
-                        f"skipped={skipped_infer}  fps={fps:.1f}  {status}"
+                        f"skipped={skipped_infer}  solo={skipped_people}  "
+                        f"fps={fps:.1f}  {status}"
                     )
 
         except KeyboardInterrupt:
@@ -491,7 +523,9 @@ def main():
         print("ERROR: ffmpeg not found. Install with: brew install ffmpeg")
         sys.exit(1)
 
-    print("\nLoading model...")
+    print("\nLoading models...")
+    person_counter = PersonCounter(conf_threshold=PERSON_CONF, device=args.device)
+    print(f"  People gate: at least {max(1, MIN_PEOPLE)} people before violence check")
     detector = ViolenceDetector(
         weights=args.weights,
         conf_threshold=args.conf,
@@ -546,6 +580,8 @@ def main():
         url=url,
         info=info,
         detector=detector,
+        person_counter=person_counter,
+        min_people=max(1, MIN_PEOPLE),
         every_n=max(1, args.every),
         save_alerts=not args.no_alerts,
         headless=headless,

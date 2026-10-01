@@ -29,6 +29,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# Downloaded person-detection weights (fetched on first run)
+pi/yolov8n.pt
+
 # Local media / runtime outputs
 alerts/
 *.mp4

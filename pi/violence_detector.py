@@ -53,6 +53,38 @@ class ViolenceResult:
         return f"{self.label} ({self.confidence:.1%})"
 
 
+class PersonCounter:
+    """Count people with the COCO YOLOv8n detector (class 0 = person)."""
+
+    def __init__(
+        self,
+        weights: str | Path | None = None,
+        conf_threshold: float = 0.40,
+        device: str | None = None,
+        imgsz: int = 320,
+    ):
+        weights_path = Path(weights) if weights else _HERE / "yolov8n.pt"
+        source = str(weights_path) if weights_path.exists() else "yolov8n.pt"
+        self.model = YOLO(source)
+        self.conf_threshold = conf_threshold
+        self.device = device or "cpu"
+        self.imgsz = imgsz
+
+    def count(self, frame_bgr: np.ndarray) -> int:
+        results = self.model.predict(
+            frame_bgr,
+            classes=[0],
+            conf=self.conf_threshold,
+            imgsz=self.imgsz,
+            verbose=False,
+            device=self.device,
+        )
+        boxes = results[0].boxes
+        if boxes is None:
+            return 0
+        return int(len(boxes))
+
+
 class ViolenceDetector:
     def __init__(
         self,
