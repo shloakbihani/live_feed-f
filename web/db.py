@@ -64,8 +64,61 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS push_camera_idx
                 ON push_subscriptions (camera_ip);
+
+            CREATE TABLE IF NOT EXISTS app_flags (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             """
         )
+
+
+# Labeled unsafe frames shown once in Archive. A delete stays deleted.
+ARCHIVE_SAMPLES = (
+    ("alert_20260721_174427.jpg", "2026-07-21T17:44:27+05:30", 0.82),
+    ("alert_20260811_160522.jpg", "2026-08-11T16:05:22+05:30", 0.76),
+    ("alert_20260811_160548.jpg", "2026-08-11T16:05:48+05:30", 0.74),
+    ("alert_20260924_173127.jpg", "2026-09-24T17:31:27+05:30", 0.85),
+)
+
+
+def seed_archive_samples(camera_ip: str, daycare_name: str) -> int:
+    """Add the sample archive frames once for this centre."""
+    camera_ip = camera_ip.strip()
+    flag = f"archive_samples:{camera_ip}"
+    with connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        already = conn.execute(
+            "SELECT 1 FROM app_flags WHERE key = ?",
+            (flag,),
+        ).fetchone()
+        if already:
+            return 0
+        conn.execute(
+            "INSERT INTO app_flags (key, value) VALUES (?, '1')",
+            (flag,),
+        )
+        created = datetime.now().astimezone().isoformat()
+        for filename, when, confidence in ARCHIVE_SAMPLES:
+            detected = datetime.fromisoformat(when)
+            conn.execute(
+                """
+                INSERT INTO detections (
+                    camera_ip, daycare_name, detected_at, confidence, label, channel,
+                    snapshot_url, cloudinary_public_id, saved, expires_at, created_at
+                ) VALUES (?, ?, ?, ?, 'violence', 1, ?, '', 1, ?, ?)
+                """,
+                (
+                    camera_ip,
+                    daycare_name,
+                    detected.isoformat(),
+                    confidence,
+                    f"/static/archive/{filename}",
+                    end_of_local_day(detected).isoformat(),
+                    created,
+                ),
+            )
+        return len(ARCHIVE_SAMPLES)
 
 
 def upsert_tenant(camera_ip: str, password: str, daycare_name: str) -> None:

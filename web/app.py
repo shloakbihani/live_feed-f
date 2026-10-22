@@ -119,6 +119,8 @@ def logout():
 def dashboard():
     purge_expired()
     camera_ip = session["camera_ip"]
+    daycare_name = session.get("daycare_name") or camera_ip
+    store.seed_archive_samples(camera_ip, daycare_name)
     rows = store.list_detections(camera_ip)
     saved = [r for r in rows if r["saved"]]
     today = [r for r in rows if not r["saved"]]
@@ -126,7 +128,7 @@ def dashboard():
     latest = rows[0] if rows else None
     return render_template(
         "dashboard.html",
-        daycare_name=session.get("daycare_name") or camera_ip,
+        daycare_name=daycare_name,
         camera_ip=camera_ip,
         today=today,
         saved=saved,
@@ -169,7 +171,9 @@ def delete_detection(det_id: int):
     store.delete_detection(det_id)
     if public_id:
         destroy_asset(public_id)
-    flash("Detection deleted from the portal and Supabase.", "ok")
+        flash("Detection deleted from the portal and Supabase.", "ok")
+    else:
+        flash("Removed from the archive.", "ok")
     return redirect(url_for("dashboard"))
 
 
