@@ -47,13 +47,14 @@ HTTP_LOGIN = f"http://{CAMERA_IP}/RPC2_Login"
 HTTP_STREAM = f"http://{CAMERA_IP}/cgi-bin/mjpg/video.cgi?channel=1&subtype=1"
 
 # Violence model.
-# best.pt is the original classifier.
+# best.pt is the original classifier and is not loaded.
 # best_daycare_ft.pt is the calm-room fine-tune.
-# best_action_ft.pt learned the three new struggle clips.
+# best_action_ft.pt learned the earlier struggle clips.
+# best_newdata_ft.pt is the latest fine-tune, trained from best_action_ft.pt.
 _WEIGHTS_DIR = Path(__file__).parent / "violence_yolov8n_cls-4" / "weights"
 _weights_raw = os.getenv(
     "VIOLENCE_WEIGHTS",
-    str(_WEIGHTS_DIR / "best_action_ft.pt"),
+    str(_WEIGHTS_DIR / "best_newdata_ft.pt"),
 )
 _weights_path = Path(_weights_raw)
 if not _weights_path.is_absolute():
@@ -79,7 +80,7 @@ TORCH_NUM_THREADS = int(os.getenv("TORCH_NUM_THREADS", "2"))
 DEPLOY_HEADLESS = os.getenv("DEPLOY_HEADLESS", "true").lower() in ("1", "true", "yes")
 
 # SMS via Quectel EC200U-CN on the USB Type-C cable (AT serial, not the Pi UART pins).
-# MODEM_PORT empty = try every /dev/ttyUSB* and /dev/ttyACM* until one answers AT.
+# MODEM_PORT empty = find the EC200U by USB ID 2c7c:0901, on any socket.
 SMS_ENABLED = os.getenv("SMS_ENABLED", "false").lower() in ("1", "true", "yes")
 SMS_TO = os.getenv("SMS_TO", "")
 MODEM_PORT = os.getenv("MODEM_PORT", "").strip()

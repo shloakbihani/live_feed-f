@@ -8,16 +8,6 @@ LOG="$DIR/logs/modem.log"
 
 mkdir -p "$DIR/logs"
 
-usb_stay_on() {
-  local dev vendor
-  for dev in /sys/bus/usb/devices/*; do
-    vendor="$dev/idVendor"
-    if [ -f "$vendor" ] && [ "$(cat "$vendor" 2>/dev/null)" = "2c7c" ]; then
-      echo on > "$dev/power/control" 2>/dev/null || true
-    fi
-  done
-}
-
 is_running() {
   [ -f "$PIDFILE" ] || return 1
   kill -0 "$(cat "$PIDFILE")" 2>/dev/null
@@ -28,7 +18,6 @@ start() {
     echo "modem keepalive already running (pid $(cat "$PIDFILE"))"
     return 0
   fi
-  usb_stay_on
   nohup "$PY" -u "$DIR/modem_keepalive.py" >> "$LOG" 2>&1 &
   echo $! > "$PIDFILE"
   echo "modem keepalive started (pid $(cat "$PIDFILE"))"
@@ -59,7 +48,6 @@ case "${1:-start}" in
   stop) stop ;;
   status) status ;;
   foreground)
-    usb_stay_on
     exec "$PY" -u "$DIR/modem_keepalive.py"
     ;;
   *)

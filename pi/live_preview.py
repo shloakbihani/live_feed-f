@@ -5,7 +5,7 @@ This does not save alerts, email anyone, or post to the dashboard.
 Press q to quit, s to save the current frame.
 
     python3 live_preview.py
-    python3 live_preview.py --weights violence_yolov8n_cls-4/weights/best.pt
+    python3 live_preview.py --weights violence_yolov8n_cls-4/weights/best_newdata_ft.pt
 """
 
 from __future__ import annotations

@@ -2,9 +2,10 @@
 YOLOv8 violence classifier wrapper.
 
 Models in pi/violence_yolov8n_cls-4/weights/:
-  best.pt              original classifier
+  best.pt              original classifier, not used
   best_daycare_ft.pt   calm-room fine-tune
-  best_action_ft.pt    struggle-clip fine-tune (selected by VIOLENCE_WEIGHTS)
+  best_action_ft.pt    earlier struggle-clip fine-tune
+  best_newdata_ft.pt   latest fine-tune (selected by VIOLENCE_WEIGHTS)
 Classes: 0 = non_violence, 1 = violence
 Input size: 224x224
 """
@@ -15,22 +16,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-_HERE = Path(__file__).parent
-_REPO = _HERE.parent
-_WEIGHTS_CANDIDATES = (
-    _HERE / "violence_yolov8n_cls-4" / "weights" / "best.pt",
-    _REPO / "violence_yolov8n_cls-4" / "weights" / "best.pt",  # old repo-root layout
-)
-DEFAULT_WEIGHTS = next(
-    (p for p in _WEIGHTS_CANDIDATES if p.exists()),
-    _WEIGHTS_CANDIDATES[0],
-)
-
 import cv2
 import numpy as np
 from ultralytics import YOLO
 
-from config import TORCH_NUM_THREADS
+from config import TORCH_NUM_THREADS, VIOLENCE_WEIGHTS
 
 os.environ.setdefault("OMP_NUM_THREADS", str(TORCH_NUM_THREADS))
 os.environ.setdefault("MKL_NUM_THREADS", str(TORCH_NUM_THREADS))
@@ -59,7 +49,7 @@ class ViolenceResult:
 class ViolenceDetector:
     def __init__(
         self,
-        weights: str | Path = DEFAULT_WEIGHTS,
+        weights: str | Path = VIOLENCE_WEIGHTS,
         conf_threshold: float = 0.60,
         device: str | None = None,
     ):

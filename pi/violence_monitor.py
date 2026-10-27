@@ -11,7 +11,7 @@ Usage:
     python3 violence_monitor.py --every 5            # infer every 5th frame
     python3 violence_monitor.py --save-alerts        # save clips on violence
     python3 violence_monitor.py --headless --save-alerts
-    python3 violence_monitor.py --weights violence_yolov8n_cls-4/weights/best.pt
+    python3 violence_monitor.py --weights violence_yolov8n_cls-4/weights/best_newdata_ft.pt
 """
 
 from __future__ import annotations
@@ -361,7 +361,7 @@ def main():
     parser.add_argument("--subtype", type=int, default=CAMERA_SUBTYPE, choices=[0, 1],
                         help="0=main HD (slower), 1=sub-stream (recommended for ML)")
     parser.add_argument("--weights", default=VIOLENCE_WEIGHTS,
-                        help="Classifier weights (default: struggle-clip fine-tune)")
+                        help="Classifier weights (default: latest fine-tune, best_newdata_ft.pt)")
     parser.add_argument("--conf", type=float, default=VIOLENCE_CONF,
                         help="Violence confidence threshold")
     parser.add_argument("--every", type=int, default=VIOLENCE_EVERY_N,
