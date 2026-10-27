@@ -100,3 +100,26 @@ python3 train_finetune.py
 ```
 
 Check the new held-out violence clip, then copy the checkpoint to `pi/violence_yolov8n_cls-4/weights/best_daycare_ft.pt`. Leave `best.pt` as the original model.
+
+## Action fine-tune (27 Oct 2026)
+
+Three new clips in `ml-model/new_data` (`violence.mp4`, `violence2.mp4`, `violence3.mp4`) were added. The head was trained from `best_daycare_ft.pt` with `prepare_action_ft.py` and `train_action_ft.py`. `best.pt` and `best_daycare_ft.pt` were left in place. The monitor now loads `best_action_ft.pt`.
+
+| Item | Value |
+|---|---|
+| Frames | 2 per second, long side 640 |
+| Train | 299 calm, 250 violence |
+| Val | 74 calm, 32 violence |
+| Device | Apple M4 (MPS) |
+| Learning rate | 0.0004, head only (`freeze=9`), 12 epochs |
+| Best val top-1 | 0.991 |
+
+On every sampled frame of the three clips, frames at or above 60% violence:
+
+| Clip | Before (`best_daycare_ft`) | After (`best_action_ft`) |
+|---|---|---|
+| violence.mp4 | 9/28 | 28/28 |
+| violence2.mp4 | 32/95 | 95/95 |
+| violence3.mp4 | 8/32 | 32/32 |
+
+Calm validation frames called unsafe: 2/74 before, 1/74 after.

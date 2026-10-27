@@ -3,7 +3,8 @@ YOLOv8 violence classifier wrapper.
 
 Models in pi/violence_yolov8n_cls-4/weights/:
   best.pt              original classifier
-  best_daycare_ft.pt   daycare fine-tune (selected by VIOLENCE_WEIGHTS)
+  best_daycare_ft.pt   calm-room fine-tune
+  best_action_ft.pt    struggle-clip fine-tune (selected by VIOLENCE_WEIGHTS)
 Classes: 0 = non_violence, 1 = violence
 Input size: 224x224
 """

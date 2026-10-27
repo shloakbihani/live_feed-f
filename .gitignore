@@ -31,7 +31,9 @@ Thumbs.db
 
 # Training images (do not push the dataset)
 ml-model/data/
+ml-model/new_data/
 ml-model/dataset/
+ml-model/dataset_actions/
 
 # Local media / runtime outputs
 alerts/

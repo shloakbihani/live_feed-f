@@ -47,11 +47,13 @@ HTTP_LOGIN = f"http://{CAMERA_IP}/RPC2_Login"
 HTTP_STREAM = f"http://{CAMERA_IP}/cgi-bin/mjpg/video.cgi?channel=1&subtype=1"
 
 # Violence model.
-# best.pt is the original classifier. best_daycare_ft.pt is the daycare fine-tune.
+# best.pt is the original classifier.
+# best_daycare_ft.pt is the calm-room fine-tune.
+# best_action_ft.pt learned the three new struggle clips.
 _WEIGHTS_DIR = Path(__file__).parent / "violence_yolov8n_cls-4" / "weights"
 _weights_raw = os.getenv(
     "VIOLENCE_WEIGHTS",
-    str(_WEIGHTS_DIR / "best_daycare_ft.pt"),
+    str(_WEIGHTS_DIR / "best_action_ft.pt"),
 )
 _weights_path = Path(_weights_raw)
 if not _weights_path.is_absolute():

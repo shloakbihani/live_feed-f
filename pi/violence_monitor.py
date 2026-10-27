@@ -361,7 +361,7 @@ def main():
     parser.add_argument("--subtype", type=int, default=CAMERA_SUBTYPE, choices=[0, 1],
                         help="0=main HD (slower), 1=sub-stream (recommended for ML)")
     parser.add_argument("--weights", default=VIOLENCE_WEIGHTS,
-                        help="Classifier weights (default: daycare fine-tune)")
+                        help="Classifier weights (default: struggle-clip fine-tune)")
     parser.add_argument("--conf", type=float, default=VIOLENCE_CONF,
                         help="Violence confidence threshold")
     parser.add_argument("--every", type=int, default=VIOLENCE_EVERY_N,
