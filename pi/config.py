@@ -76,9 +76,19 @@ TORCH_NUM_THREADS = int(os.getenv("TORCH_NUM_THREADS", "2"))
 # Deployment
 DEPLOY_HEADLESS = os.getenv("DEPLOY_HEADLESS", "true").lower() in ("1", "true", "yes")
 
+# SMS via Quectel EC200U-CN on the USB Type-C cable (AT serial, not the Pi UART pins).
+# MODEM_PORT empty = try every /dev/ttyUSB* and /dev/ttyACM* until one answers AT.
+SMS_ENABLED = os.getenv("SMS_ENABLED", "false").lower() in ("1", "true", "yes")
+SMS_TO = os.getenv("SMS_TO", "")
+MODEM_PORT = os.getenv("MODEM_PORT", "").strip()
+MODEM_BAUD = int(os.getenv("MODEM_BAUD", "115200"))
+MODEM_SIM_PIN = os.getenv("MODEM_SIM_PIN", "").strip()
+MODEM_WAKE_SEC = int(os.getenv("MODEM_WAKE_SEC", "30"))
+
 # Email (optional SMTP alert, e.g. personal Gmail with an App Password).
-# fallback: send only when the dashboard push reached nobody.
-# always: send on every alert, even if push succeeded.
+# fallback: send only when the USB SMS did not go out
+# (or, if SMS is off, when the dashboard push reached nobody).
+# always: send on every alert, even if SMS and push succeeded.
 EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "false").lower() in ("1", "true", "yes")
 EMAIL_MODE = os.getenv("EMAIL_MODE", "fallback").strip().lower()
 if EMAIL_MODE not in ("fallback", "always"):
@@ -109,6 +119,20 @@ DAYCARE_TZ = os.getenv("DAYCARE_TZ", "Asia/Kolkata")
 # Web portal ingest (Pi posts detections after the Supabase Storage upload)
 PORTAL_URL = os.getenv("PORTAL_URL", "").rstrip("/")
 PORTAL_INGEST_KEY = os.getenv("PORTAL_INGEST_KEY", "")
+
+
+def parse_sms_recipients(raw: str | None = None) -> list[str]:
+    """Parse comma/semicolon/newline-separated phone numbers into E.164 list."""
+    text = raw if raw is not None else SMS_TO
+    numbers: list[str] = []
+    for part in text.replace(";", ",").replace("\n", ",").split(","):
+        number = part.strip().replace(" ", "")
+        if not number:
+            continue
+        if not number.startswith("+"):
+            number = f"+{number}"
+        numbers.append(number)
+    return numbers
 
 
 def parse_email_recipients(raw: str | None = None) -> list[str]:

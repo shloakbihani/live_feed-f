@@ -387,6 +387,8 @@ def main():
                         help="No display window (default from DEPLOY_HEADLESS in .env)")
     parser.add_argument("--scale", type=float, default=0.5,
                         help="Display scale factor (default 0.5)")
+    parser.add_argument("--test-sms", action="store_true",
+                        help="Send a test SMS through the USB modem, then exit")
     parser.add_argument("--test-email", action="store_true",
                         help="Send a test alert email, then exit")
     parser.add_argument("--test-log", action="store_true",
@@ -405,6 +407,14 @@ def main():
     print("=" * 60)
 
     notifier = None if args.no_alerts else build_notifier_from_env()
+
+    if args.test_sms:
+        if notifier is None or not notifier.sms_enabled:
+            print("ERROR: Set SMS_ENABLED=true and SMS_TO in .env")
+            sys.exit(1)
+        results = notifier.send_sms()
+        print("Test result:", results)
+        sys.exit(0 if any(item.ok for item in results) else 1)
 
     if args.test_email:
         if notifier is None or not notifier.email_enabled:
@@ -453,8 +463,15 @@ def main():
     if notifier and notifier.enabled:
         if notifier._supabase:
             print("  Supabase: logging enabled")
+        if notifier.sms_enabled:
+            print(f"  SMS: USB modem first → {', '.join(notifier.sms_recipients)}")
         if notifier.email_enabled:
-            email_when = "every alert" if EMAIL_MODE == "always" else "fallback if push is not delivered"
+            if EMAIL_MODE == "always":
+                email_when = "every alert"
+            elif notifier.sms_enabled:
+                email_when = "fallback if SMS does not send"
+            else:
+                email_when = "fallback if push is not delivered"
             print(f"  Email: {email_when} → {', '.join(notifier.email_recipients)}")
         if not (notifier._supabase or notifier.email_enabled):
             print("  Alerts: portal push (enable alerts on the dashboard)")

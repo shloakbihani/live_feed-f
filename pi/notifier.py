@@ -1,20 +1,14 @@
 """
-Alert notifier: optional email + Supabase detection logging.
+Alert notifier: USB-modem SMS, dashboard push, email fallback, Supabase log.
 
 Push notifications are sent by the web dashboard when the Pi POSTs a
-detection to PORTAL_URL. This module no longer sends SMS.
-
-Configure in .env:
-  SUPABASE_LOGGING=true
-  SUPABASE_URL=https://xxxx.supabase.co
-  SUPABASE_SERVICE_ROLE_KEY=eyJ...
-  EMAIL_ENABLED=true   (optional SMTP)
+detection to PORTAL_URL. SMS goes out through the Quectel EC200U on USB.
 
 On violence detection notify() will:
-  1. Insert a row into Supabase violence_alerts (if SUPABASE_LOGGING=true)
-  2. Send email via SMTP when EMAIL_ENABLED=true.
-     EMAIL_MODE=fallback sends only if the website push reached nobody.
-     EMAIL_MODE=always sends on every alert.
+  1. Send SMS on the USB modem when SMS_ENABLED=true
+  2. Leave email for later: EMAIL_MODE=fallback sends only if that SMS
+     did not go out (or, when SMS is off, if the website push reached nobody)
+  3. Insert a row into Supabase violence_alerts when SUPABASE_LOGGING=true
 """
 
 from __future__ import annotations
@@ -29,6 +23,8 @@ from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from modem_sms import ModemSms, SmsSendResult
+
 from config import (
     DAYCARE_NAME,
     DAYCARE_TZ,
@@ -38,11 +34,17 @@ from config import (
     EMAIL_MODE,
     EMAIL_SUBJECT,
     EMAIL_TO,
+    MODEM_BAUD,
+    MODEM_PORT,
+    MODEM_SIM_PIN,
+    SMS_ENABLED,
+    SMS_TO,
     SMTP_HOST,
     SMTP_PASSWORD,
     SMTP_PORT,
     SMTP_USER,
     parse_email_recipients,
+    parse_sms_recipients,
     SUPABASE_ANON_KEY,
     SUPABASE_LOGGING,
     SUPABASE_SERVICE_ROLE_KEY,
@@ -96,27 +98,43 @@ class EmailSendResult:
 
 
 class AlertNotifier:
-    """Log every detection to Supabase; optionally email staff."""
+    """SMS on the USB modem, email as fallback, and Supabase logging."""
 
     def __init__(
         self,
         supabase_logging: bool | None = None,
         email_enabled: bool | None = None,
+        sms_enabled: bool | None = None,
     ):
         self.email_enabled = email_enabled if email_enabled is not None else EMAIL_ENABLED
         self.email_recipients = parse_email_recipients(EMAIL_TO)
+        self.sms_enabled = sms_enabled if sms_enabled is not None else SMS_ENABLED
+        self.sms_recipients = parse_sms_recipients(SMS_TO)
+        self.modem = ModemSms(MODEM_PORT, MODEM_BAUD, MODEM_SIM_PIN)
         self.supabase_logging = (
             supabase_logging if supabase_logging is not None else SUPABASE_LOGGING
         )
         self._supabase = None
 
+        self._init_sms()
         self._init_supabase()
         self._init_email()
 
     @property
     def enabled(self) -> bool:
-        """True if email or Supabase logging is active."""
-        return self.email_enabled or self._supabase is not None
+        """True if SMS, email, or Supabase logging is active."""
+        return self.sms_enabled or self.email_enabled or self._supabase is not None
+
+    def _init_sms(self) -> None:
+        if not self.sms_enabled:
+            return
+        if not self.sms_recipients:
+            print("  [notifier] SMS_ENABLED=true but SMS_TO is empty — SMS disabled")
+            self.sms_enabled = False
+            return
+        port = self.modem.find_port()
+        where = port or "no USB port yet; each alert will look again"
+        print(f"  [notifier] SMS via EC200U USB → {', '.join(self.sms_recipients)} ({where})")
 
     def _init_email(self) -> None:
         if not self.email_enabled:
@@ -129,7 +147,12 @@ class AlertNotifier:
             print("  [notifier] EMAIL_TO empty — email disabled")
             self.email_enabled = False
             return
-        mode = "on every alert" if EMAIL_MODE == "always" else "only if website push is not delivered"
+        if EMAIL_MODE == "always":
+            mode = "on every alert"
+        elif self.sms_enabled:
+            mode = "only if the USB SMS does not send"
+        else:
+            mode = "only if the website push is not delivered"
         print(f"  [notifier] Email ready ({mode}) → {', '.join(self.email_recipients)}")
 
     def incident_text(self, event: AlertEvent | None = None) -> str:
@@ -219,27 +242,47 @@ class AlertNotifier:
             print(f"  [notifier] Supabase insert failed: {e}")
             return None
 
+    def send_sms(self, event: AlertEvent | None = None) -> list[SmsSendResult]:
+        if not self.sms_enabled:
+            return []
+        text = self.incident_text(event)
+        results = self.modem.send_text(self.sms_recipients, text)
+        for result in results:
+            if result.ok:
+                print(f"  [notifier] SMS sent → {result.to}")
+            else:
+                print(f"  [notifier] SMS failed → {result.to}: {result.error}")
+        return results
+
     def notify(self, event: AlertEvent, *, push_delivered: bool = False) -> dict[str, Any]:
         if not self.enabled:
             return {"ok": False, "reason": "disabled"}
 
+        sms_results = self.send_sms(event) if self.sms_enabled else []
+        sms_ok = any(result.ok for result in sms_results)
+
         email_result: EmailSendResult | None = None
-        if self.email_enabled and (EMAIL_MODE == "always" or not push_delivered):
-            if push_delivered:
-                print("  [notifier] Push delivered — also sending email")
-            else:
-                print("  [notifier] Push not delivered — sending email fallback")
+        if self.email_enabled and EMAIL_MODE == "always":
+            print("  [notifier] Sending email")
             email_result = self.send_email(event)
-        elif self.email_enabled and push_delivered:
-            print("  [notifier] Push delivered — email skipped")
+        elif self.email_enabled and self.sms_enabled and not sms_ok:
+            print("  [notifier] SMS did not send — sending email fallback")
+            email_result = self.send_email(event)
+        elif self.email_enabled and not self.sms_enabled and not push_delivered:
+            print("  [notifier] Push not delivered — sending email fallback")
+            email_result = self.send_email(event)
+        elif self.email_enabled:
+            print("  [notifier] SMS or push delivered — email skipped")
 
         supabase_row = self.log_supabase(event)
         email_ok = bool(email_result and email_result.ok)
-        ok = bool(supabase_row) or email_ok
-        first_error = email_result.error if email_result and email_result.error else None
+        ok = sms_ok or push_delivered or email_ok or bool(supabase_row)
+        sms_error = next((result.error for result in sms_results if result.error), None)
+        first_error = sms_error or (email_result.error if email_result and email_result.error else None)
 
         return {
             "ok": ok,
+            "sms": [{"to": result.to, "ok": result.ok, "error": result.error} for result in sms_results],
             "email": (
                 {"ok": email_result.ok, "error": email_result.error} if email_result else None
             ),
@@ -252,7 +295,7 @@ SupabaseWhatsAppNotifier = AlertNotifier
 
 
 def build_notifier_from_env() -> AlertNotifier | None:
-    if not SUPABASE_LOGGING and not EMAIL_ENABLED:
+    if not SUPABASE_LOGGING and not EMAIL_ENABLED and not SMS_ENABLED:
         return None
     notifier = AlertNotifier()
     return notifier if notifier.enabled else None

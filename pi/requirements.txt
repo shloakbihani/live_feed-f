@@ -4,5 +4,6 @@ websockets>=12.0
 ultralytics>=8.0.0
 torch>=2.0.0
 python-dotenv>=1.0.0
+pyserial>=3.5
 certifi>=2024.0.0
 supabase>=2.0.0
