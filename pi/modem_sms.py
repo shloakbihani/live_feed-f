@@ -251,29 +251,35 @@ class ModemSms:
         device = self._usb_device(port)
         if device is None:
             return "missing"
-        control = device / "power" / "control"
+        power = device / "power"
+        control = power / "control"
+        delay = power / "autosuspend"
         try:
-            current = control.read_text().strip()
+            held = control.read_text().strip() == "on"
         except OSError:
             return "denied"
-        if current == "on":
-            return "already"
-        try:
-            control.write_text("on")
-        except OSError:
-            return "denied"
-        try:
-            after = control.read_text().strip()
-        except OSError:
-            return "denied"
-        return "on" if after == "on" else "failed"
+        if not held:
+            try:
+                control.write_text("on")
+                held = control.read_text().strip() == "on"
+            except OSError:
+                return "denied"
+        # -1 disables the idle timer if power/control is later set back to auto.
+        # That file is root-only; control=on already forbids autosuspend.
+        if delay.is_file():
+            try:
+                if delay.read_text().strip() != "-1":
+                    delay.write_text("-1")
+            except OSError:
+                pass
+        return "on" if held else "failed"
 
     def _log_usb_power(self, port: str) -> None:
         if self._power_logged:
             return
         result = self._disable_autosuspend(port)
-        if result in ("on", "already"):
-            self._log("USB autosuspend disabled")
+        if result == "on":
+            self._log("USB power held on (autosuspend off)")
             self._power_logged = True
         elif result == "denied":
             self._log("USB autosuspend not changed (permission denied)")
@@ -371,6 +377,10 @@ class ModemSms:
             self._log("QSCLK verification failed")
 
     def _send_one(self, ser: serial.Serial, number: str, text: str) -> SmsSendResult:
+        pin = self._at(ser, "AT+CPIN?", timeout=3)
+        if "READY" not in pin:
+            detail = " ".join(pin.split())
+            return SmsSendResult(to=number, ok=False, error=detail or "SIM not ready")
         prompt = self._at(ser, f'AT+CMGS="{number}"', timeout=8, wait_for=">")
         if ">" not in prompt:
             detail = " ".join(prompt.split())

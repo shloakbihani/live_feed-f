@@ -1,3 +1,4 @@
 # Quectel EC200U verified on this Pi as 2c7c:0901.
 # Applies to whichever USB socket the module is plugged into.
-ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="2c7c", ATTR{idProduct}=="0901", TEST=="power/control", ATTR{power/control}="on"
+# control=on forbids autosuspend; autosuspend=-1 is the idle delay if control flips back to auto.
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="2c7c", ATTR{idProduct}=="0901", TEST=="power/control", ATTR{power/control}="on", ATTR{power/autosuspend}="-1"

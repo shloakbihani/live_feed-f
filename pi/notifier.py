@@ -37,6 +37,7 @@ from config import (
     MODEM_BAUD,
     MODEM_PORT,
     MODEM_SIM_PIN,
+    PORTAL_URL,
     SMS_ENABLED,
     SMS_TO,
     SMTP_HOST,
@@ -246,6 +247,8 @@ class AlertNotifier:
         if not self.sms_enabled:
             return []
         text = self.incident_text(event)
+        if PORTAL_URL:
+            text = f"{text}\n{PORTAL_URL}/login"
         results = self.modem.send_text(self.sms_recipients, text)
         for result in results:
             if result.ok:
