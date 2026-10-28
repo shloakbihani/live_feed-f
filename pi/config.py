@@ -79,17 +79,17 @@ TORCH_NUM_THREADS = int(os.getenv("TORCH_NUM_THREADS", "2"))
 # Deployment
 DEPLOY_HEADLESS = os.getenv("DEPLOY_HEADLESS", "true").lower() in ("1", "true", "yes")
 
-# SMS via Quectel EC200U-CN on the USB Type-C cable (AT serial, not the Pi UART pins).
-# MODEM_PORT empty = find the EC200U by USB ID 2c7c:0901, on any socket.
+# SMS via Quectel EC200U MAIN UART on the Pi GPIO header.
+# Type-C is power only. AT commands use /dev/ttyAMA0 (pin 8 TXD, pin 10 RXD).
 SMS_ENABLED = os.getenv("SMS_ENABLED", "false").lower() in ("1", "true", "yes")
 SMS_TO = os.getenv("SMS_TO", "")
-MODEM_PORT = os.getenv("MODEM_PORT", "").strip()
+MODEM_PORT = os.getenv("MODEM_PORT", "/dev/ttyAMA0").strip() or "/dev/ttyAMA0"
 MODEM_BAUD = int(os.getenv("MODEM_BAUD", "115200"))
 MODEM_SIM_PIN = os.getenv("MODEM_SIM_PIN", "").strip()
 MODEM_WAKE_SEC = int(os.getenv("MODEM_WAKE_SEC", "30"))
 
 # Email (optional SMTP alert, e.g. personal Gmail with an App Password).
-# fallback: send only when the USB SMS did not go out
+# fallback: send only when the GPIO UART SMS did not go out
 # (or, if SMS is off, when the dashboard push reached nobody).
 # always: send on every alert, even if SMS and push succeeded.
 EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "false").lower() in ("1", "true", "yes")

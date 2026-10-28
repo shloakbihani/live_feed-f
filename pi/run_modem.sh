@@ -1,5 +1,5 @@
 #!/bin/bash
-# Keep the EC200U USB modem awake. Usage: ./run_modem.sh start|stop|status|foreground
+# Keep the EC200U awake on the GPIO UART. Usage: ./run_modem.sh start|stop|status|foreground
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PY="$DIR/venv/bin/python"

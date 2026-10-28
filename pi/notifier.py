@@ -1,11 +1,12 @@
 """
-Alert notifier: USB-modem SMS, dashboard push, email fallback, Supabase log.
+Alert notifier: GPIO-UART SMS, dashboard push, email fallback, Supabase log.
 
 Push notifications are sent by the web dashboard when the Pi POSTs a
-detection to PORTAL_URL. SMS goes out through the Quectel EC200U on USB.
+detection to PORTAL_URL. SMS goes out through the Quectel EC200U on
+/dev/ttyAMA0 (Pi GPIO 14/15). The USB cable is power only.
 
 On violence detection notify() will:
-  1. Send SMS on the USB modem when SMS_ENABLED=true
+  1. Send SMS on the GPIO UART when SMS_ENABLED=true
   2. Leave email for later: EMAIL_MODE=fallback sends only if that SMS
      did not go out (or, when SMS is off, if the website push reached nobody)
   3. Insert a row into Supabase violence_alerts when SUPABASE_LOGGING=true
@@ -99,7 +100,7 @@ class EmailSendResult:
 
 
 class AlertNotifier:
-    """SMS on the USB modem, email as fallback, and Supabase logging."""
+    """SMS on the GPIO UART, email as fallback, and Supabase logging."""
 
     def __init__(
         self,
@@ -134,8 +135,8 @@ class AlertNotifier:
             self.sms_enabled = False
             return
         port = self.modem.find_port()
-        where = port or "no USB port yet; each alert will look again"
-        print(f"  [notifier] SMS via EC200U USB → {', '.join(self.sms_recipients)} ({where})")
+        where = port or f"{self.modem.port} not answering yet; each alert will try again"
+        print(f"  [notifier] SMS via EC200U GPIO UART → {', '.join(self.sms_recipients)} ({where})")
 
     def _init_email(self) -> None:
         if not self.email_enabled:
@@ -151,7 +152,7 @@ class AlertNotifier:
         if EMAIL_MODE == "always":
             mode = "on every alert"
         elif self.sms_enabled:
-            mode = "only if the USB SMS does not send"
+            mode = "only if the GPIO UART SMS does not send"
         else:
             mode = "only if the website push is not delivered"
         print(f"  [notifier] Email ready ({mode}) → {', '.join(self.email_recipients)}")

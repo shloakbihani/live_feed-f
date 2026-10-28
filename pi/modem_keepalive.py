@@ -1,8 +1,7 @@
-"""Watch the Quectel EC200U and restore its awake settings after a replug.
+"""Keep the Quectel EC200U awake on the Pi GPIO UART.
 
-Started from run_modem.sh, including at boot. The serial work lives in
-modem_sms.py. This loop only notices arrival and departure; it does not
-send AT commands on its own while the modem is already configured.
+Started from run_modem.sh, including at boot. AT commands use
+/dev/ttyAMA0. The USB cable is power only.
 """
 
 from __future__ import annotations

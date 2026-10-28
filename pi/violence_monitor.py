@@ -388,7 +388,7 @@ def main():
     parser.add_argument("--scale", type=float, default=0.5,
                         help="Display scale factor (default 0.5)")
     parser.add_argument("--test-sms", action="store_true",
-                        help="Send a test SMS through the USB modem, then exit")
+                        help="Send a test SMS through the GPIO UART, then exit")
     parser.add_argument("--test-email", action="store_true",
                         help="Send a test alert email, then exit")
     parser.add_argument("--test-log", action="store_true",
@@ -464,7 +464,7 @@ def main():
         if notifier._supabase:
             print("  Supabase: logging enabled")
         if notifier.sms_enabled:
-            print(f"  SMS: USB modem first → {', '.join(notifier.sms_recipients)}")
+            print(f"  SMS: GPIO UART first → {', '.join(notifier.sms_recipients)}")
         if notifier.email_enabled:
             if EMAIL_MODE == "always":
                 email_when = "every alert"

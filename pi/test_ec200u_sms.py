@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send one test SMS through the Quectel EC200U on USB.
+"""Send one test SMS through the Quectel EC200U on the GPIO UART.
 
 Usage:
   python3 test_ec200u_sms.py
@@ -66,7 +66,7 @@ def main() -> int:
 
     port = ModemSms().find_port()
     if not port:
-        print("No EC200U AT port. Plug the module USB-C cable into the Pi and try again.")
+        print("No answer on /dev/ttyAMA0. Check module TXD to Pi pin 10 and RXD to Pi pin 8.")
         return 1
 
     print(f"EC200U AT port: {port}")
