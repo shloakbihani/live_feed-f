@@ -180,6 +180,13 @@ class AlertNotifier:
             body = self.incident_text(event)
             if EMAIL_BODY and event is None:
                 body = EMAIL_BODY
+            dashboard = (
+                f"{PORTAL_URL}/dashboard"
+                if PORTAL_URL
+                else "https://daycare-dashboard-qnvl.onrender.com/dashboard"
+            )
+            if dashboard not in body:
+                body = f"{body}\n\nView the dashboard: {dashboard}"
             msg.set_content(body)
 
             context = ssl.create_default_context(cafile=certifi.where())
